@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+
+cat <<EOT | sudo tee /etc/systemd/system/hopper_mqtt.service > /dev/null
+[Unit]
+Description=Hopper MQTT Server
+
+[Service]
+Type=simple
+Restart=on-failure
+RestartSec=5s
+ExecStart=/home/$(whoami)/.cargo/bin/hopper_mqtt
+
+[Install]
+WantedBy=default.target
+EOT
+
+sudo systemctl enable hopper_mqtt
+sudo systemctl start hopper_mqtt
