@@ -2,6 +2,7 @@ use log::*;
 use simplelog::*;
 use rumqtt::{MqttClient, MqttOptions, QoS, Notification, ReconnectOptions};
 use serde::{Serialize, Deserialize};
+use chrono::prelude::*;
 use rand::Rng;
 use std::str;
 
@@ -16,6 +17,21 @@ struct RelayMessage {
 enum MessageWrapper {
     Message(RelayMessage),
     KeepAlive
+}
+
+#[derive(Deserialize)]
+enum Status {
+    Alive,
+    Reconnected,
+    Dead,
+}
+
+#[derive(Deserialize)]
+struct AliveReport {
+    unit_name: String,
+    status: Status,
+    #[allow(dead_code)]
+    start_time: DateTime<Local>,
 }
 
 fn send_to_discord(client: &mut MqttClient, message: &str) {
@@ -50,11 +66,13 @@ fn main() {
 
     // topics
     let voltage_topic = "hopper/telemetry/voltage";
+    let devices_topic = "devices";
     let warning_voltage_topic = "hopper/telemetry/warning_voltage";
     let incoming_discord_message_topic = &format!("discord/receive/{}", hopper_channel_id);
 
     let topics = vec![
         voltage_topic,
+        devices_topic,
         warning_voltage_topic,
         incoming_discord_message_topic,
     ];
@@ -118,7 +136,20 @@ fn main() {
                     } else {
                         warn!("failed to parse incoming discord message");
                     }
-                }
+                },
+                "devices" => {
+                    if let Ok(message) = serde_json::from_slice::<AliveReport>(&data.payload) {
+                        if message.unit_name.to_ascii_lowercase().contains("hopper") {
+                            match message.status {
+                                Status::Alive => send_to_discord(&mut mqtt_client, "Hopper just woke up!"),
+                                Status::Reconnected => send_to_discord(&mut mqtt_client, "Hopper signal restored!"),
+                                Status::Dead => send_to_discord(&mut mqtt_client, "Hopper LOS"),
+                            }
+                        }
+                    } else {
+                        warn!("Failed to deserialize Alive report");
+                    }
+                },
                 _ => {
                     warn!("Unknown topic")
                 }
