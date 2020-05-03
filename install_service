@@ -14,5 +14,6 @@ ExecStart=/home/$(whoami)/.cargo/bin/hopper_mqtt
 WantedBy=default.target
 EOT
 
+sudo systemctl daemon-reload
 sudo systemctl enable hopper_mqtt
 sudo systemctl start hopper_mqtt
